@@ -37,7 +37,6 @@ use crossbeam_channel as chan;
 use serde_json;
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
-use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::process::{ChildStderr, ChildStdout, Command, ExitStatus, Stdio};
 use std::thread;
@@ -48,7 +47,7 @@ use vec1::Vec1;
 pub struct CallOpts<'a> {
     input: Input<'a>,
     attribute: Option<String>,
-    argstrs: HashMap<String, String>,
+    argstrs: HashMap<OsString, OsString>,
     stderr_line_tx: Option<chan::Sender<OsString>>,
 }
 
@@ -184,8 +183,13 @@ impl<'a> CallOpts<'a> {
     ///   output.unwrap(), "Hello, Jill!"
     /// );
     /// ```
-    pub fn argstr(&mut self, name: &str, value: &str) -> &mut Self {
-        self.argstrs.insert(name.to_string(), value.to_string());
+    pub fn argstr<P, Q>(&mut self, name: P, value: Q) -> &mut Self
+    where
+        P: AsRef<OsStr>,
+        Q: AsRef<OsStr>,
+    {
+        self.argstrs
+            .insert(name.as_ref().to_owned(), value.as_ref().to_owned());
         self
     }
 
@@ -392,7 +396,7 @@ impl<'a> CallOpts<'a> {
         let stderr_handle: ChildStderr = nix_proc.stderr.take().expect("failed to take stderr");
         let stderr_tx = self.stderr_line_tx.clone();
         let stderr_thread = thread::spawn(move || {
-            let reader = osstrlines::Lines::from(BufReader::new(stderr_handle));
+            let reader = osstrlines::Lines::from(std::io::BufReader::new(stderr_handle));
             if let Some(tx) = stderr_tx {
                 for line in reader {
                     tx.send(line.unwrap()).expect("Receiver for nix.rs hung up");
@@ -404,7 +408,8 @@ impl<'a> CallOpts<'a> {
 
         // 2. spawn a stdout handling thread (?)
         let stdout_handle: ChildStdout = nix_proc.stdout.take().expect("failed to take stdout");
-        let stdout_thread = thread::spawn(move || stdout_fn(BufReader::new(stdout_handle)));
+        let stdout_thread =
+            thread::spawn(move || stdout_fn(std::io::BufReader::new(stdout_handle)));
 
         // 3. wait on the process
         let nix_proc_result = nix_proc.wait().expect("nix wasn't running");
@@ -434,8 +439,8 @@ impl<'a> CallOpts<'a> {
 
         for (name, value) in self.argstrs.iter() {
             ret.push(OsStr::new("--argstr"));
-            ret.push(OsStr::new(name));
-            ret.push(OsStr::new(value));
+            ret.push(&name);
+            ret.push(&value);
         }
 
         match self.input {

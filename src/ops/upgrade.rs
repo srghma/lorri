@@ -82,14 +82,14 @@ pub fn main(upgrade_target: cli::UpgradeTo, cas: &ContentAddressable) -> OpResul
     let expr = {
         let src = match UpgradeSource::from_cli_argument(upgrade_target) {
             Ok(src) => Ok(src),
-            Err(UpgradeSourceError::LocalPathNotFound(p)) => Err(ExitError::errmsg(format!(
+            Err(UpgradeSourceError::LocalPathNotFound(p)) => Err(ExitError::user_error(format!(
                 "Cannot upgrade to local repository {}: path not found",
                 p.display()
             ))),
-            Err(UpgradeSourceError::CantCanonicalizeLocalPath(err)) => Err(ExitError::errmsg(
+            Err(UpgradeSourceError::CantCanonicalizeLocalPath(err)) => Err(ExitError::temporary(
                 format!("Problem accessing local repository:\n{:?}", err),
             )),
-            Err(UpgradeSourceError::ReleaseNixDoesntExist(p)) => Err(ExitError::errmsg(format!(
+            Err(UpgradeSourceError::ReleaseNixDoesntExist(p)) => Err(ExitError::user_error(format!(
                 "{} does not exist, are you sure this is a lorri repository?",
                 p.display()
             ))),
@@ -105,16 +105,11 @@ pub fn main(upgrade_target: cli::UpgradeTo, cas: &ContentAddressable) -> OpResul
         match src {
             UpgradeSource::Branch(b) => {
                 expr.argstr("type", "branch");
-                expr.argstr("branch", &b);
+                expr.argstr("branch", b);
             }
             UpgradeSource::Local(p) => {
                 expr.argstr("type", "local");
-                expr.argstr(
-                    "path",
-                    p.to_str()
-                        // TODO: this is unnecessary, argstr() should take an OsStr()
-                        .expect("Requested Lorri source directory not UTF-8 clean"),
-                );
+                expr.argstr("path", p);
             }
         }
         // ugly hack to prevent expr from being mutable outside,
