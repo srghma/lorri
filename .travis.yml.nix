@@ -69,7 +69,6 @@ let
           export LANG=C.UTF-8
           export LANGUAGE=C.UTF-8
         ''
-        ''testsuite=$(mktemp)''
         ''nix-build --arg isDevelopmentShell false -A ci.testsuite shell.nix > ./testsuite''
       ]
       ++ pushToCachix { inherit isDarwin; } "./testsuite"
